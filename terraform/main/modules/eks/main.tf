@@ -46,6 +46,5 @@ resource "aws_eks_pod_identity_association" "external_dns" {
 
   depends_on = [
     aws_eks_addon.eks_pod_identity_agent,
-    aws_iam_role_policy_attachment.external_dns_attach
   ]
 }
