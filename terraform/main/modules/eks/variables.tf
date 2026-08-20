@@ -45,3 +45,7 @@ variable "root_domain" {
 variable "argocd_hostname" {
   type        = string
 }
+
+variable "eks_addon_versions" {
+  type = map(string)
+}

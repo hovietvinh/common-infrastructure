@@ -84,11 +84,9 @@ resource "helm_release" "argocd" {
   version = "10.3.3"
   values = [
     templatefile("${path.module}/values/argocd.yaml.tpl", {
-      hostname = var.argocd_hostname
+      argocd_hostname = var.argocd_hostname
     })
   ]
 
   depends_on = [aws_eks_node_group.eks_node_group]
-
-
 }
