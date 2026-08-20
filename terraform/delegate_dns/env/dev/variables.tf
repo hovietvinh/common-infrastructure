@@ -13,3 +13,7 @@ variable "env" {
 variable "root_domain" {
   type = string
 }
+
+variable "sub_domains" {
+  type        = list(string)
+}
