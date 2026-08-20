@@ -6,6 +6,10 @@ variable "env" {
   type = string
 }
 
+variable "region"{
+  type = string
+}
+
 variable "eks_cluster_version" {
   type = string
 }

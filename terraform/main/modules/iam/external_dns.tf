@@ -1,4 +1,4 @@
-resource "aws_iam_policy_document" "external_dns_assume" {
+data "aws_iam_policy_document" "external_dns_assume" {
   statement {
     effect  = "Allow"
     actions = [
@@ -21,7 +21,7 @@ data "aws_iam_policy_document" "external_dns_permissions" {
   statement {
     effect  = "Allow"
     actions = ["route53:ChangeResourceRecordSets"]
-    resources = ["arn:aws:route53:::hostedzone/${aws_route53_zone.main.zone_id}"]
+    resources = ["arn:aws:route53:::hostedzone/${data.aws_route53_zone.common.zone_id}"]
   }
   statement {
     effect  = "Allow"

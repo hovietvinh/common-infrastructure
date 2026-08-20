@@ -2,6 +2,7 @@ module "eks" {
   source = "../../modules/eks"
   env = var.env
   project_name = var.project_name
+  region = var.region
 
   // role
   eks_cluster_role_arn = module.iam.eks_cluster_role_arn
