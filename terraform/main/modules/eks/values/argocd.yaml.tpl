@@ -6,14 +6,11 @@ configs:
 server:
   ingress:
     enabled: true
-    ingressClassName: nginx
+    ingressClassName: alb
     hostname: ${argocd_hostname}
     annotations:
-      nginx.ingress.kubernetes.io/ssl-redirect: "false"
-
-controller:
-  replicas: 1
-repoServer:
-  replicas: 1
-applicationSet:
-  replicas: 1
+      alb.ingress.kubernetes.io/group.name: common-shared-alb
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
