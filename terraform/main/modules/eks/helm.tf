@@ -40,7 +40,28 @@ resource "helm_release" "aws_lbc" {
     value = "aws-load-balancer-controller"
   }
 
+  set {
+    name  = "serviceAccount.create"
+    value = "true"
+  }
+
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = var.aws_lbc_role_arn
+  }
+
+  set {
+    name  = "vpcId"
+    value = data.aws_vpc.this.id
+  }
+
+  set {
+    name  = "region"
+    value = var.region
+  }
+
   depends_on = [
+    aws_eks_node_group.eks_node_group,
     helm_release.cluster_autoscaler
   ]
 }
