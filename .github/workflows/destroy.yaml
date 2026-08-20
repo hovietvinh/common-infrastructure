@@ -1,0 +1,153 @@
+name: Destroy AWS Infra (Terraform Destroy + Delete State Bucket)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+      confirm_env:
+        description: 'Type the environment name again to confirm (e.g. "dev")'
+        required: true
+      run_destroy:
+        description: 'Type "yes" to actually destroy both stacks AND delete the S3 state bucket. "no" only plans.'
+        required: true
+        default: 'no'
+        type: choice
+        options:
+          - 'yes'
+          - 'no'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy:
+    name: Terraform Destroy (main + delegate_dns) + delete S3 state bucket
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Guard - confirm environment name matches
+        if: github.event.inputs.confirm_env != github.event.inputs.environment
+        run: |
+          echo "confirm_env ('${{ github.event.inputs.confirm_env }}') does not match environment ('${{ github.event.inputs.environment }}')."
+          echo "Aborting to prevent an accidental destroy."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@d0834ad3a60a024346910e522a81b0002bd37fea
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gh-infra-destroy
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.4
+
+      - name: Resolve state bucket name
+        id: bucket
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET_NAME="common-${ENV}-terraform-state-${ACCOUNT_ID}"
+          echo "bucket_name=${BUCKET_NAME}" >> "$GITHUB_OUTPUT"
+          echo "Resolved bucket: ${BUCKET_NAME}"
+
+          if ! aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
+            echo "State bucket ${BUCKET_NAME} not found - nothing was ever provisioned, or it was already cleaned up."
+            exit 1
+          fi
+
+      # ---------------------------------------------------------------
+      # Stack 1: terraform/main (EKS/VPC/etc). Destroy this FIRST.
+      # Assumes the cleanup-k8s-alb pipeline already ran, so the ALB and
+      # any external-dns-managed Route53 records are already gone.
+      # ---------------------------------------------------------------
+      - name: "[main] Terraform Init"
+        working-directory: ./terraform/main/env/${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          terraform init -backend-config="bucket=${{ steps.bucket.outputs.bucket_name }}"
+
+      - name: "[main] Terraform Plan (destroy)"
+        working-directory: ./terraform/main/env/${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          terraform plan -destroy -var-file="terraform.tfvars" -out=tfdestroyplan -input=false
+
+      - name: "[main] Terraform Destroy"
+        if: github.event.inputs.run_destroy == 'yes'
+        working-directory: ./terraform/main/env/${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          terraform apply -auto-approve tfdestroyplan
+          echo "[main] destroy completed."
+
+      # ---------------------------------------------------------------
+      # Stack 2: terraform/delegate_dns (Route53 hosted zone / delegation).
+      # Destroy this SECOND, after main is fully gone.
+      # ---------------------------------------------------------------
+      - name: "[delegate_dns] Terraform Init"
+        working-directory: ./terraform/delegate_dns/env/${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          terraform init -backend-config="bucket=${{ steps.bucket.outputs.bucket_name }}"
+
+      - name: "[delegate_dns] Terraform Plan (destroy)"
+        working-directory: ./terraform/delegate_dns/env/${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          terraform plan -destroy -var-file="terraform.tfvars" -out=tfdestroyplan -input=false
+
+      - name: "[delegate_dns] Terraform Destroy"
+        if: github.event.inputs.run_destroy == 'yes'
+        working-directory: ./terraform/delegate_dns/env/${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          terraform apply -auto-approve tfdestroyplan
+          echo "[delegate_dns] destroy completed."
+
+      # ---------------------------------------------------------------
+      # Finally: empty (all versions, since versioning is enabled) and
+      # delete the S3 state bucket itself. Only runs after BOTH
+      # terraform destroys above have succeeded.
+      # ---------------------------------------------------------------
+      - name: Empty and delete S3 state bucket
+        if: github.event.inputs.run_destroy == 'yes'
+        run: |
+          set -e
+          BUCKET_NAME="${{ steps.bucket.outputs.bucket_name }}"
+          echo "Emptying all object versions + delete markers in ${BUCKET_NAME}..."
+
+          aws s3api list-object-versions --bucket "$BUCKET_NAME" \
+            --output json --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}' \
+            > versions.json
+          if [ "$(jq '.Objects | length' versions.json)" -gt 0 ]; then
+            aws s3api delete-objects --bucket "$BUCKET_NAME" --delete file://versions.json
+          fi
+
+          aws s3api list-object-versions --bucket "$BUCKET_NAME" \
+            --output json --query '{Objects: DeleteMarkers[].{Key:Key,VersionId:VersionId}}' \
+            > markers.json
+          if [ "$(jq '.Objects | length' markers.json)" -gt 0 ]; then
+            aws s3api delete-objects --bucket "$BUCKET_NAME" --delete file://markers.json
+          fi
+
+          echo "Deleting bucket ${BUCKET_NAME}..."
+          aws s3api delete-bucket --bucket "$BUCKET_NAME" --region "${{ vars.AWS_REGION }}"
+          echo "Bucket ${BUCKET_NAME} deleted."
+
+      - name: Summary
+        run: |
+          if [ "${{ github.event.inputs.run_destroy }}" == "yes" ]; then
+            echo "Destroyed: terraform/main, terraform/delegate_dns, and deleted the S3 state bucket."
+          else
+            echo "Dry run only (run_destroy=no). Review the two destroy plans above, then re-run with run_destroy=yes."
+          fi
