@@ -24,3 +24,21 @@ module "iam" {
   env = var.env
   project_name = var.project_name
 }
+
+module "fe" {
+  source = "../../modules/ecr"
+  env = var.env
+  project_name = var.project_name
+  ecr_repository_name = var.ecr_fe_name
+  ecr_scan_on_push = var.ecr_scan_on_push
+  ecr_image_count = var.ecr_image_count
+}
+
+module "be_api" {
+  source = "../../modules/ecr"
+  env = var.env
+  project_name = var.project_name
+  ecr_repository_name = var.ecr_be_api_name
+  ecr_scan_on_push = var.ecr_scan_on_push
+  ecr_image_count = var.ecr_image_count
+}

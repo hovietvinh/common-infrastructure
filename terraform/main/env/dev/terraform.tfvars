@@ -15,3 +15,6 @@ eks_addon_versions = {
   vpc_cni                  = "v1.21.1-eksbuild.7"
   eks_pod_identity   = "v1.3.10-eksbuild.2"
 }
+
+ecr_fe_name = "fe"
+ecr_be_api_name = "be-api"

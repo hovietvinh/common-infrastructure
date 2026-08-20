@@ -7,6 +7,7 @@ output "eks_worker_role_arn" {
   depends_on = [
     aws_iam_role_policy_attachment.eks_worker_role_AmazonEKSWorkerNodePolicy,
     aws_iam_role_policy_attachment.eks_worker_role_AmazonEKS_CNI_Policy,
+    aws_iam_role_policy_attachment.eks_worker_role_AmazonEC2ContainerRegistryReadOnly
   ]
 }
 

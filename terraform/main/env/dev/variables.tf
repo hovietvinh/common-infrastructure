@@ -32,3 +32,21 @@ variable "argocd_hostname" {
 variable "eks_addon_versions" {
   type = map(string)
 }
+
+variable "ecr_fe_name" {
+  type        = string
+  description = "Name of the ECR repository"
+}
+
+variable "ecr_be_api_name" {
+  type        = string
+  description = "Name of the ECR repository"
+}
+
+variable "ecr_scan_on_push" {
+  type        = bool
+}
+
+variable "ecr_image_count" {
+  type        = number
+}
