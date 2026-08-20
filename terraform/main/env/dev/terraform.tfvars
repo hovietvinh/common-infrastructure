@@ -1,5 +1,6 @@
 env = "dev"
 project_name = "common"
+region = "ap-southeast-1"
 
 root_domain = "common.dataassess.uk"
 argocd_hostname = "argocd.common.dataassess.uk"
