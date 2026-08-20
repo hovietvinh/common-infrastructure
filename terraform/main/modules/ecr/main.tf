@@ -1,5 +1,5 @@
 resource "aws_ecr_repository" "this" {
-  name                 = "${var.project_name}-${var.env}-${ecr_repository_name}-ecr-repository"
+  name                 = "${var.project_name}-${var.env}-${var.ecr_repository_name}-ecr-repository"
   image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
