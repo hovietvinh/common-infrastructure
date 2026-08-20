@@ -18,3 +18,5 @@ eks_addon_versions = {
 
 ecr_fe_name = "fe"
 ecr_be_api_name = "be-api"
+ecr_scan_on_push = true
+ecr_image_count = 10
